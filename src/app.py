@@ -21,7 +21,7 @@ class ObfuscationApp:
         self.root = root
         self.root.title("RMOR")
         script_dir = os.path.dirname(__file__)
-        icon_path = os.path.join(script_dir, "..", "..", "logo.ico")
+        icon_path = os.path.join(script_dir, "..", "logo.ico")
         self.root.iconbitmap(icon_path)
         self.root.geometry("740x560")
         self.root.resizable(True, True)
