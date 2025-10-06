@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.services.llvm_service import LLVMService
+from src.utils.stats_parser import parse_llvm_stats
 
 
 class LLVMPassService:
@@ -28,6 +29,7 @@ class LLVMPassService:
     ):
         self.clang = shutil.which(clang_path) or clang_path
         self.work_dir = Path(work_dir) if work_dir else Path.cwd()
+        self.stats = {}
         if not shutil.which(self.clang):
             print(
                 f"[WARN] clang binary '{clang_path}' not found in PATH. Will try to run '{self.clang}' anyway."
@@ -94,7 +96,21 @@ class LLVMPassService:
             ]
 
             for _ in range(cycles):
-                success = self._run_cmd(cmd)
+                success, stdout, stderr = self._run_cmd(cmd)
+
+                if stderr:
+                    run_stats = parse_llvm_stats(stderr)
+                    if not hasattr(self, "stats") or self.stats is None:
+                        self.stats = {}
+                    for key, metrics in run_stats.items():
+                        if key not in self.stats:
+                            self.stats[key] = {}
+                        for metric_name, value in metrics.items():
+                            if metric_name in self.stats[key]:
+                                self.stats[key][metric_name] += value
+                            else:
+                                self.stats[key][metric_name] = value
+
                 if not success:
                     print(f"[ERROR] Pass '{pass_name}' failed.")
                     break
