@@ -17,6 +17,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.services.llvm_service import LLVMService
+
 
 class LLVMPassService:
     def __init__(
@@ -31,7 +33,7 @@ class LLVMPassService:
                 f"[WARN] clang binary '{clang_path}' not found in PATH. Will try to run '{self.clang}' anyway."
             )
 
-    def _load_json_config(json_path: str) -> dict:
+    def _load_json_config(self, json_path: str) -> dict:
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data
@@ -55,15 +57,16 @@ class LLVMPassService:
             print(f"[ERROR] Failed to execute command: {e}")
             return False
 
-    def _build_mllvm_tags(pass_name: str, params: Dict[str, Any]) -> List[str]:
+    def _build_mllvm_tags(self, pass_name: str, params: Dict[str, Any]) -> List[str]:
         tags = ["-mllvm", f"-passes={pass_name}"]
         if params:
             for key, value in params.items():
                 if key != "cycles":
-                    if pass_name == "mba":
+                    if pass_name in ["mba", "bcf"]:
                         tags.extend(["-mllvm", f"-{key}={value}"])
                     else:
                         tags.extend(["-mllvm", f"-{pass_name}-{key}={value}"])
+        tags.extend(["-mllvm", "-stats"])
         return tags
 
     def apply_json_conf(
@@ -95,6 +98,7 @@ class LLVMPassService:
                 if not success:
                     print(f"[ERROR] Pass '{pass_name}' failed.")
                     break
+            input_file = output_file
 
     def apply_passes(
         self, input_file: str, json_file: str, output_file: Optional[str] = None
@@ -115,3 +119,12 @@ class LLVMPassService:
             print(f"[ERROR] Failed to parse JSON config: {e}")
         except Exception as e:
             print(f"[ERROR] Unexpected error: {e}")
+
+
+if __name__ == "__main__":
+    input_file = r"\path\to\input"
+    json_file = r"path\to\json"
+    llvm = LLVMService()
+    input_bc_file = llvm.compile_to_bytecode(input_file)
+    llvmpass = LLVMPassService(r"path\to\clang")
+    llvmpass.apply_passes(input_bc_file, json_file)
