@@ -1,0 +1,86 @@
+{
+    "input_file": "path/to/source.c",
+    "passes": [
+        {
+            "name": "fla",
+            "enabled": true,
+            "params": {
+                "seed": 12345,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "gvenc",
+            "enabled": true,
+            "params": {
+                "key_length": 4,
+                "seed": 0,
+                "process_arrays": true,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "indcall",
+            "enabled": false,
+            "params": {
+                "seed": 7,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "indbr",
+            "enabled": true,
+            "params": {
+                "seed": 99,
+                "cond_only": false,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "alias",
+            "enabled": true,
+            "params": {
+                "seed": 2025,
+                "branch_num": 4,
+                "reuse_getters": false,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "bcf",
+            "enabled": true,
+            "params": {
+                "seed": 777,
+                "prob": 30,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "sub",
+            "enabled": true,
+            "params": {
+                "seed": 314159,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "merge",
+            "enabled": true,
+            "params": {
+                "seed": 888,
+                "ratio": 100,
+                "cycles": 1
+            }
+        },
+        {
+            "name": "mba",
+            "enabled": true,
+            "params": {
+                "seed": 999,
+                "linearmba_prob": 100,
+                "linearmba_extra": 5,
+                "cycles": 1
+            }
+        }
+    ]
+}
