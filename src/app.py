@@ -11,9 +11,11 @@ import os
 from src.core.config import TAB_BG_INACTIVE, TAB_BG_ACTIVE, TAB_TEXT_INACTIVE
 from src.ui.views.pass_config_view import create_pass_config_frame
 from src.ui.views.json_config_view import create_json_config_frame
-from src.services.obfuscation_service import start_obfuscation_placeholder
+from src.services.llvm_service import LLVMService
+from src.services.llvm_pass_service import LLVMPassService
 from src.services.pdf_service import save_report_placeholder, view_pdf
 from src.utils.file_operations import save_obfuscated_file_placeholder
+from pathlib import Path
 
 class ObfuscationApp:
     def __init__(self, root):
@@ -37,6 +39,7 @@ class ObfuscationApp:
         # --- State Attributes ---
         self.config_mode = "passes"
         self.attached_filepath = None
+        self.obfuscated_filepath = None # To store the path of the obfuscated file
         self.final_report_content = None # To store the generated report text
         self.report_filepath = os.path.join("artifacts", "obfuscation_report.pdf")
         self.platform_var = tk.StringVar(value="Windows x64 (64-bit)")
@@ -245,46 +248,80 @@ class ObfuscationApp:
 
     # --- Main Action and Placeholder Functions ---
     def start_obfuscation(self):
-        """Simulates the start of the obfuscation process."""
+        """Starts the obfuscation process using LLVM services."""
         if not self.attached_filepath:
             messagebox.showerror("Input Error", "Please attach a C/C++ code file before starting.")
             return
 
         self.start_button.configure(state="disabled", text="Obfuscating...")
         self.root.update_idletasks()
-        
+
         config_data = {}
         try:
             json_input = self.json_config_text.get("1.0", tk.END).strip()
             config_data = json.loads(json_input)
             if not config_data.get("passes"):
-                 messagebox.showinfo("Info", "Configuration has no passes defined. Process aborted.")
-                 self.reset_gui()
-                 return
+                messagebox.showinfo("Info", "Configuration has no passes defined. Process aborted.")
+                self.reset_gui()
+                return
         except json.JSONDecodeError:
             messagebox.showerror("Input Error", "Invalid JSON configuration provided.")
             self.reset_gui()
             return
-        
-        # Filter for enabled passes
+
         enabled_passes = [p for p in config_data["passes"] if p.get("enabled")]
         if not enabled_passes:
             messagebox.showinfo("Info", "No passes are enabled. Process aborted.")
             self.reset_gui()
             return
-        
-        self.final_report_content = start_obfuscation_placeholder(config_data, self.pass_display)
-        print("Report available and obfuscated file generated. Ready to save.")
-        self.save_button.configure(state="normal")
-        self.save_report_button.configure(state="normal") 
-        self.start_button.configure(text="Start Obfuscation", state="normal")
+
+        try:
+            # 1. Initialize services
+            llvm_service = LLVMService()
+            llvm_pass_service = LLVMPassService(r"E:\delete\llvm\install\install\bin\clang.exe")
+
+            # 2. Compile to bytecode
+            input_path = Path(self.attached_filepath)
+            bytecode_path = input_path.with_suffix(".bc")
+            llvm_service.compile_to_bytecode(str(input_path), str(bytecode_path))
+
+            # 3. Apply passes
+            obfuscated_path = input_path.with_name(f"{input_path.stem}_obf.bc")
+            llvm_pass_service.apply_json_conf(config_data, str(bytecode_path), str(obfuscated_path))
+
+            # 4. Store results
+            self.final_report_content = llvm_pass_service.stats
+            self.obfuscated_filepath = str(obfuscated_path)
+
+            print("Report available and obfuscated file generated. Ready to save.")
+            self.save_button.configure(state="normal")
+            self.save_report_button.configure(state="normal")
+        except Exception as e:
+            messagebox.showerror("Obfuscation Error", f"An error occurred: {e}")
+        finally:
+            self.start_button.configure(text="Start Obfuscation", state="normal")
+
 
     def save_report(self):
         """Saves the generated report content to a PDF file."""
+        if not self.final_report_content:
+            messagebox.showerror("Report Error", "No report content to save.")
+            return
+
         self.save_report_button.configure(state="disabled", text="Saving...")
         self.root.update_idletasks()
-        if save_report_placeholder(self.final_report_content, self.report_filepath):
+
+        # Format the report content
+        report_str = "Obfuscation Statistics:\n\n"
+        for pass_name, metrics in self.final_report_content.items():
+            report_str += f"Pass: {pass_name}\n"
+            for metric, value in metrics.items():
+                report_str += f"  {metric}: {value}\n"
+            report_str += "\n"
+
+        if save_report_placeholder(report_str, self.report_filepath):
             self.view_pdf_button.configure(state="normal")
+        
         self.save_report_button.configure(state="normal", text="Save Report as PDF")
 
     def view_pdf(self):
@@ -292,14 +329,31 @@ class ObfuscationApp:
         view_pdf(self.report_filepath)
 
     def save_obfuscated_file(self):
-        """Simulates saving the final obfuscated file."""
+        """Saves the obfuscated file to a user-specified location."""
+        if not self.obfuscated_filepath:
+            messagebox.showerror("Save Error", "No obfuscated file to save.")
+            return
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".bc",
+            filetypes=[("LLVM bytecode", "*.bc"), ("All files", "*.*")],
+            initialfile=Path(self.obfuscated_filepath).name,
+        )
+        if not filepath:
+            return
+
         self.save_button.configure(state="disabled", text="Saving...")
         self.root.update_idletasks()
-        
-        def complete():
-            save_obfuscated_file_placeholder()
+
+        try:
+            import shutil
+            shutil.copy(self.obfuscated_filepath, filepath)
+            messagebox.showinfo("Success", f"Obfuscated file saved to: {filepath}")
+        except Exception as e:
+            messagebox.showerror("Save Error", f"Could not save file: {e}")
+        finally:
             self.save_button.configure(state="normal", text="Generate obfuscated object file")
-        self.root.after(1000, complete)
+
 
     def reset_gui(self):
         """Resets the state of the GUI."""
