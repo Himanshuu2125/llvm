@@ -60,7 +60,10 @@ class LLVMPassService:
         if params:
             for key, value in params.items():
                 if key != "cycles":
-                    tags.extend(["-mllvm", f"-{pass_name}-{key}={value}"])
+                    if pass_name == "mba":
+                        tags.extend(["-mllvm", f"-{key}={value}"])
+                    else:
+                        tags.extend(["-mllvm", f"-{pass_name}-{key}={value}"])
         return tags
 
     def apply_json_conf(

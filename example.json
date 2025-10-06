@@ -13,9 +13,9 @@
             "name": "gvenc",
             "enabled": true,
             "params": {
-                "key_length": 4,
+                "keylen": 4,
                 "seed": 0,
-                "process_arrays": true,
+                "process-arrays": true,
                 "cycles": 1
             }
         },
@@ -32,7 +32,7 @@
             "enabled": true,
             "params": {
                 "seed": 99,
-                "cond_only": false,
+                "cond-only": false,
                 "cycles": 1
             }
         },
@@ -41,8 +41,8 @@
             "enabled": true,
             "params": {
                 "seed": 2025,
-                "branch_num": 4,
-                "reuse_getters": false,
+                "branch-num": 4,
+                "reuse-getters": false,
                 "cycles": 1
             }
         },
@@ -77,8 +77,8 @@
             "enabled": true,
             "params": {
                 "seed": 999,
-                "linearmba_prob": 100,
-                "linearmba_extra": 5,
+                "linearmba-prob": 100,
+                "linearmba-extra": 5,
                 "cycles": 1
             }
         }
