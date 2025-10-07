@@ -1,5 +1,3 @@
-# src/services/pdf_fin_service.py
-
 import json
 import os
 import subprocess
@@ -7,7 +5,7 @@ import sys
 from tkinter import filedialog, messagebox
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
@@ -26,6 +24,7 @@ def _format_value(v):
         return f"{v:.3f}"
     if isinstance(v, (dict, list)):
         try:
+            # Use indent=2 for readability in the PDF
             return json.dumps(v, indent=2)
         except Exception:
             return str(v)
@@ -41,7 +40,6 @@ def _add_section_table(story, title, data_dict, styles):
     table_data = [["Metric", "Value"]]
     for k, v in data_dict.items():
         table_data.append([str(k), _format_value(v)])
-
 
     col_widths = [90 * mm, 90 * mm]
     tbl = Table(table_data, colWidths=col_widths, hAlign="LEFT")
@@ -64,28 +62,72 @@ def _add_section_table(story, title, data_dict, styles):
     story.append(Spacer(1, 10))
 
 
-def save_report_placeholder(report_content, default_path=None):
+def _add_passes_table(story, title, passes_list, styles):
+    """Add a detailed table for the list of obfuscation passes."""
+    story.append(Paragraph(title, styles["heading"]))
+    story.append(Spacer(1, 4 * mm))
+
+    table_data = [["Pass Name", "Enabled", "Parameters"]]
+    for p in passes_list:
+        # Format params dict into a readable pre-formatted string
+        params_str = json.dumps(p.get("params", {}), indent=2)
+        # Use a specific 'code' style for monospaced font
+        params_paragraph = Paragraph(
+            params_str.replace(" ", "&nbsp;").replace("\n", "<br/>"), styles["code"]
+        )
+        table_data.append(
+            [
+                p.get("name", "N/A"),
+                str(p.get("enabled", "N/A")),
+                params_paragraph,
+            ]
+        )
+
+    # Adjusted column widths for the new content
+    col_widths = [30 * mm, 25 * mm, 115 * mm]
+    tbl = Table(table_data, colWidths=col_widths, hAlign="LEFT")
+    tbl_style = TableStyle(
+        [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E7AB7")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#444444")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]
+    )
+    tbl.setStyle(tbl_style)
+    story.append(tbl)
+    story.append(Spacer(1, 8 * mm))
+
+
+def save_report_placeholder(report_content, config_data=None, default_path=None):
     """
-    Prompts the user to choose a save location then writes a PDF report
-    created from report_content (dict or JSON string). Returns True if saved.
+    Prompts user to save a PDF report from statistics (report_content)
+    and optional configuration (config_data). Returns True if saved.
     """
     try:
+        # --- Process Statistics Data ---
         if report_content is None:
-            messagebox.showerror("Save Error", "No report content available to save.")
+            messagebox.showerror("Save Error", "No report statistics available to save.")
             return False
-
         if isinstance(report_content, str):
-            try:
-                report = json.loads(report_content)
-            except json.JSONDecodeError:
-                report = {"report": report_content}
+            report = json.loads(report_content)
         elif isinstance(report_content, dict):
             report = report_content
         else:
-            try:
-                report = dict(report_content)
-            except Exception:
-                report = {"report": str(report_content)}
+            report = {"report_data": str(report_content)}
+            
+        # --- Process Configuration Data ---
+        config = None
+        if config_data:
+            if isinstance(config_data, str):
+                config = json.loads(config_data)
+            elif isinstance(config_data, dict):
+                config = config_data
 
         initialfile = os.path.basename(default_path) if default_path else "obfuscation_report.pdf"
         save_path = filedialog.asksaveasfilename(
@@ -108,27 +150,39 @@ def save_report_placeholder(report_content, default_path=None):
         base_styles = getSampleStyleSheet()
         styles = {
             "title": ParagraphStyle(
-                "title",
-                parent=base_styles["Heading1"],
-                fontName="Helvetica-Bold",
-                fontSize=16,
-                spaceAfter=8,
+                "title", parent=base_styles["h1"], fontName="Helvetica-Bold", fontSize=16, spaceAfter=8
             ),
             "heading": ParagraphStyle(
-                "heading",
-                parent=base_styles["Heading2"],
-                fontName="Helvetica-Bold",
-                fontSize=12,
-                textColor=colors.HexColor("#2E7AB7"),
-                spaceAfter=6,
+                "heading", parent=base_styles["h2"], fontName="Helvetica-Bold", fontSize=12,
+                textColor=colors.HexColor("#2E7AB7"), spaceAfter=6,
             ),
             "normal": base_styles["BodyText"],
+            "code": ParagraphStyle(
+                "code", parent=base_styles["Normal"], fontName="Courier", fontSize=8, leading=10,
+            ),
         }
 
         story = []
         story.append(Paragraph("Obfuscation Report", styles["title"]))
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 6 * mm))
 
+        # --- Add Configuration Section if available ---
+        if config:
+            config_details = {
+                k: v for k, v in config.items() if k != "passes"
+            }
+            if config_details:
+                 _add_section_table(story, "Configuration Details", config_details, styles)
+            
+            if "passes" in config and isinstance(config["passes"], list):
+                _add_passes_table(story, "Obfuscation Passes Applied", config["passes"], styles)
+            
+            story.append(PageBreak())
+            story.append(Paragraph("Obfuscation Statistics", styles["title"]))
+            story.append(Spacer(1, 6 * mm))
+
+
+        # --- Add Statistics Section ---
         for section_name, section_value in report.items():
             if isinstance(section_value, dict):
                 _add_section_table(story, section_name, section_value, styles)

@@ -42,6 +42,7 @@ class ObfuscationApp:
         self.attached_filepath = None
         self.obfuscated_filepath = None # To store the path of the obfuscated file
         self.final_report_content = None # To store the generated report text
+        self.config_data = None
         self.report_filepath = os.path.join("artifacts", "obfuscation_report.pdf")
         self.platform_var = tk.StringVar(value="Windows x64 (64-bit)")
         self.compiler_var = tk.StringVar(value="visual studio")
@@ -277,6 +278,7 @@ class ObfuscationApp:
         try:
             json_input = self.json_config_text.get("1.0", tk.END).strip()
             config_data = json.loads(json_input)
+            self.config_data = config_data
             if not config_data.get("passes"):
                 messagebox.showinfo("Info", "Configuration has no passes defined. Process aborted.")
                 self.reset_gui()
@@ -369,7 +371,7 @@ class ObfuscationApp:
             if key not in ["bitcode-reader", "file-search"]:
                 ordered_report_data[key] = value
 
-        if save_report_placeholder(ordered_report_data, self.report_filepath):
+        if save_report_placeholder(ordered_report_data, config_data=self.config_data, default_path=self.report_filepath):
             self.view_pdf_button.configure(state="normal")
         
         self.save_report_button.configure(state="normal", text="Save Report as PDF")
