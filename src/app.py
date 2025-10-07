@@ -44,6 +44,7 @@ class ObfuscationApp:
         self.final_report_content = None # To store the generated report text
         self.report_filepath = os.path.join("artifacts", "obfuscation_report.pdf")
         self.platform_var = tk.StringVar(value="Windows x64 (64-bit)")
+        self.compiler_var = tk.StringVar(value="visual studio")
 
         # --- Pass Configuration Attributes ---
         self.properties_frames = {}
@@ -108,6 +109,12 @@ class ObfuscationApp:
         self.platform_dropdown.grid(row=0, column=1, sticky="w")
         self.platform_var.trace('w', lambda *args: self.update_json_from_passes())
 
+        ctk.CTkLabel(platform_frame, text="Target Compiler:").grid(row=0, column=2, sticky="w", padx=(20, 10))
+        self.compiler_dropdown = ctk.CTkOptionMenu(platform_frame, values=["visual studio", "mingw/gnu"], variable=self.compiler_var)
+        self.compiler_dropdown.grid(row=0, column=3, sticky="w")
+        self.compiler_var.trace('w', lambda *args: self.update_json_from_passes())
+
+
         # --- Control Button ---
         self.start_button = ctk.CTkButton(root, text="Start Obfuscation", command=self.start_obfuscation, font=ctk.CTkFont(family='Helvetica', size=15, weight='bold'))
         self.start_button.grid(row=3, column=0, sticky="ew", pady=15, padx=15)
@@ -133,6 +140,7 @@ class ObfuscationApp:
         final_config = {
             "input_file": self.attached_filepath if self.attached_filepath else "path/to/source.c",
             "platform": self.platform_var.get(),
+            "compiler": self.compiler_var.get(),
             "passes": []
         }
         use_common_seed = self.common_seed_var.get()
@@ -295,7 +303,7 @@ class ObfuscationApp:
             # 2. Compile to bytecode
             input_path = Path(self.attached_filepath)
             bytecode_path = input_path.with_suffix(".bc")
-            llvm_service.compile_to_bytecode(str(input_path), str(bytecode_path))
+            llvm_service.compile_to_bytecode(str(input_path), str(bytecode_path), config_data.get("compiler"))
 
             # 3. Apply passes
             obfuscated_path = input_path.with_name(f"{input_path.stem}_obf.bc")
