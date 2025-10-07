@@ -7,13 +7,14 @@ import tkinter as tk
 from tkinter import messagebox, filedialog
 import json
 import os
+from dotenv import load_dotenv
 
 from src.core.config import TAB_BG_INACTIVE, TAB_BG_ACTIVE, TAB_TEXT_INACTIVE
 from src.ui.views.pass_config_view import create_pass_config_frame
 from src.ui.views.json_config_view import create_json_config_frame
 from src.services.llvm_service import LLVMService
 from src.services.llvm_pass_service import LLVMPassService
-from src.services.pdf_service import save_report_placeholder, view_pdf
+from src.services.pdf_fin_service import save_report_placeholder, view_pdf
 from src.utils.file_operations import save_obfuscated_file_placeholder
 from pathlib import Path
 
@@ -147,7 +148,12 @@ class ObfuscationApp:
                 
                 # Get seed
                 seed_str = common_seed_str if use_common_seed and is_enabled else self.seed_entries[key].get()
-                params["seed"] = int(seed_str) if seed_str else 0
+                if key == 'bcf':
+                    params["boguscfg-seed"] = int(seed_str) if seed_str else 0
+                elif key == 'mba':
+                    params["linearmba-seed"] = int(seed_str) if seed_str else 0
+                else: 
+                    params["seed"] = int(seed_str) if seed_str else 0
                 
                 # Get other properties
                 for prop_id, info in self.property_widgets.get(key, {}).items():
@@ -156,7 +162,10 @@ class ObfuscationApp:
                     elif info["type"] == "bool": value = widget.get()
                     elif info["type"] == "int": value = int(widget.get() or "0")
                     else: value = None
-                    params[prop_id] = value
+                    if key == "bcf" and prop_id == "prob":
+                        params["boguscfg-prob"] = value
+                    else:
+                        params[prop_id] = value
 
                 final_config["passes"].append({
                     "name": key,
@@ -277,8 +286,11 @@ class ObfuscationApp:
 
         try:
             # 1. Initialize services
-            llvm_service = LLVMService()
-            llvm_pass_service = LLVMPassService(r"E:\delete\llvm\install\install\bin\clang.exe")
+            load_dotenv()
+            clang_path = os.getenv("CLANG_PATH")
+            print(clang_path)
+            llvm_service = LLVMService(clang_path)
+            llvm_pass_service = LLVMPassService(clang_path)
 
             # 2. Compile to bytecode
             input_path = Path(self.attached_filepath)
@@ -296,6 +308,7 @@ class ObfuscationApp:
             print("Report available and obfuscated file generated. Ready to save.")
             self.save_button.configure(state="normal")
             self.save_report_button.configure(state="normal")
+            messagebox.showinfo("Success", f"File Obfuscation Completed Successfully")
         except Exception as e:
             messagebox.showerror("Obfuscation Error", f"An error occurred: {e}")
         finally:
@@ -311,15 +324,44 @@ class ObfuscationApp:
         self.save_report_button.configure(state="disabled", text="Saving...")
         self.root.update_idletasks()
 
-        # Format the report content
-        report_str = "Obfuscation Statistics:\n\n"
-        for pass_name, metrics in self.final_report_content.items():
-            report_str += f"Pass: {pass_name}\n"
-            for metric, value in metrics.items():
-                report_str += f"  {metric}: {value}\n"
-            report_str += "\n"
+        # Create a new ordered dictionary for the report
+        ordered_report_data = {}
 
-        if save_report_placeholder(report_str, self.report_filepath):
+        # Add input file parameters first
+        if self.attached_filepath:
+            try:
+                file_size = str(os.path.getsize(self.attached_filepath))+" bytes"
+                file_name = os.path.basename(self.attached_filepath)
+                obf_file_size = str(os.path.getsize(self.obfuscated_filepath))+" bytes"
+                obf_file_name = os.path.basename(self.obfuscated_filepath)
+                
+                file_type = os.path.splitext(file_name)[1].upper().replace(".", "")
+                if not file_type:
+                    file_type = "Unknown"
+                elif file_type == "CPP":
+                    file_type = "C++"
+                
+                ordered_report_data["input file parameters"] = {
+                    "filename": file_name,
+                    "filesize": file_size,
+                    "filetype": file_type,
+                }
+                ordered_report_data["output file parameters"] = {
+                    "filename": obf_file_name,
+                    "filesize": obf_file_size,
+                }
+            except Exception as e:
+                print(f"Could not add input file parameters: {e}")
+
+        # Deep copy the original report content to avoid modifying it
+        original_report_data = json.loads(json.dumps(self.final_report_content))
+
+        # Add the rest of the report data, excluding unwanted keys
+        for key, value in original_report_data.items():
+            if key not in ["bitcode-reader", "file-search"]:
+                ordered_report_data[key] = value
+
+        if save_report_placeholder(ordered_report_data, self.report_filepath):
             self.view_pdf_button.configure(state="normal")
         
         self.save_report_button.configure(state="normal", text="Save Report as PDF")

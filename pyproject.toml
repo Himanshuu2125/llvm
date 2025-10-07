@@ -8,5 +8,6 @@ dependencies = [
     "customtkinter>=5.2.2",
     "fpdf>=1.7.2",
     "fastapi>=0.118.0",
-
+    "reportlab>=4.4.4",
+    "python-dotenv>=0.21.0",
 ]
